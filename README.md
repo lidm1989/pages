@@ -1,2 +1,2 @@
-# hugo
-My Blog
+# My Blog
+My github pages by hugo.

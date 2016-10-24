@@ -1,6 +1,6 @@
 baseurl = "https://lidm1989.github.io/"
 languageCode = "zh-CN"
-title = "Lidm's Blog"
+title = "Lidm's blog"
 
 [Params]
   Author = "Lidm"
