@@ -2,7 +2,7 @@
 date = "2016-10-08T22:28:53+08:00"
 draft = false
 title = "Python源码剖析阅读笔记"
-thumbnail = "images/python.jpg"
+thumbnail = "images/python/python.jpg"
 
 categories = ["python"]
 
