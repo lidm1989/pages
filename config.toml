@@ -1,6 +1,9 @@
 baseurl = "https://lidm1989.github.io/"
-languageCode = "zh-CN"
-title = "Lidm's blog"
+languageCode = "zh_CN"
+title = "lidm's blog"
+
+theme = "hugo_theme_robust"
 
 [Params]
   Author = "Lidm"
+

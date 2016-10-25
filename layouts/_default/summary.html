@@ -19,35 +19,8 @@
   <footer class="article-footer">
     <div class="content-inner">
 
-      {{ partial "duosuo.html" . }}
+      {{ partial "duoshuo.html" . }}
 
-      <nav class="p-crumb">
-        <ol>
-          <li><a href="{{ .Site.BaseURL }}"><i class="fa fa-home" aria-hidden="true"></i></a></li>
-          {{ with .Section }}
-          <li itemscope="" itemtype="http://data-vocabulary.org/Breadcrumb"><a href="{{ $.Site.BaseURL }}{{ . | urlize }}/" itemprop="url"><span itemprop="title">{{ . }}</span></a></li>
-          {{ end }}
-          <li class="active">{{ .Title }}</li>
-        </ol>
-      </nav>
-
-      {{ $params := .Params }}
-      {{ range $key, $value := $.Site.Taxonomies }}
-      {{ if isset $params $key }}
-      <section class="article-footer">
-        <header>
-          <a href="{{ $.Site.BaseURL }}{{ $key | urlize }}/">{{ $key | upper }}</a>
-        </header>
-        <div>
-          <ul class="p-terms inline">
-            {{ range (index $params $key) }}
-            <li><a href="{{ $.Site.BaseURL }}{{ $key | urlize }}/{{ . | urlize }}/">{{ . }}</a></li>
-            {{ end }}
-          </ul>
-        </div>
-      </section>
-      {{ end }}
-      {{ end }}
     </div>
   </footer>
 
