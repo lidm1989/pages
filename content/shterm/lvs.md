@@ -2,6 +2,7 @@
 date = "2016-10-16T17:16:41+08:00"
 draft = false
 title = "lvs"
+thumbnail = "images/shterm/lvs.png"
 
 categories = ["linux"]
 
@@ -23,8 +24,16 @@ pacemaker + lvs + ldirectord
 为了节约成本，lvs由pacemaker随机选取集群节点中的一个节点来运行。调度策略采用lvs的dr模式，调度算法采用lc。
 
 # 实施
+由于lvs要求real server必须禁止arp响应而virtual server必须支持arp响应，所以pacemaker定义资源运行在Master/Slave模式并与ldirectord绑定关系。
+
 ### lvs资源
-lvs运行在master/slave模式。master节点在指定网卡上配置vip，响应arp，并启用转发；slave节点在网卡lo上配置vip，不响应arp。响应arp要求通知路由更新arp，由程序send_arp向路由发送更新消息，该程序由resource-agents的IPaddr中提取，IPaddr位于/usr/lib/ocf/resource.d/heartbead/IPaddr。以下agent脚本由pacemaker提供的模板改编而来，模版默认位于/usr/lib/ocf/resource.d/pacemaker/Stateful。
+lvs运行在master/slave模式。master节点在指定网卡上配置vip，响应arp，并启用转发；slave节点在网卡lo上配置vip，不响应arp。
+
+响应arp需要通知路由更新arp表，由程序send_arp向路由发送更新消息，该程序由resource-agents的IPaddr中提取，IPaddr位于/usr/lib/ocf/resource.d/heartbeat/IPaddr。
+
+以下agent脚本由pacemaker提供的Stateful模板改编而来，模版默认位于/usr/lib/ocf/resource.d/pacemaker/Stateful。
+
+**文件名：lvs**
 
     #!/bin/sh
     #
@@ -152,7 +161,6 @@ lvs运行在master/slave模式。master节点在指定网卡上配置vip，响�
         sysctl net.ipv4.conf.lo.arp_announce=0
 
         ipvsadm -C
-        ipvsadm -A -t $VIP:$PORT -s rr
 
         /usr/libexec/heartbeat/send_arp -i 200 -r 5  $NIC $VIP auto not_used not_used
 
@@ -317,44 +325,32 @@ lvs运行在master/slave模式。master节点在指定网卡上配置vip，响�
     exit $?
 
 ### ldirectord
-ldirectord要从官网下载安装。由于ldirectord没有提供相应agent，我们这里也要增加相应agent。以下agent脚本由pacemaker提供的模板改编而来，模版默认位于/usr/lib/ocf/resource.d/pacemaker/Dummy。
+ldirectord需从官网下载安装。
 
-### playbook
-这里密码写死123456
+由于ldirectord没有提供相应agent，我们这里也要增加相应agent。agent脚本可由pacemaker提供的模板改编而来，模版默认位于/usr/lib/ocf/resource.d/pacemaker/Dummy。
 
-    ---
-    - hosts: nodes
-    become: yes
-    tasks:
-    - name: Set a password for the hacluster user
-        user: name=hacluster password=$6$rounds=656000$JBKx3dx31baJQ.zA$uBwQqkpLY/0SV7JxEHdKGcXfjQx6NZgvKoiZ/Z13NTFjn96UyTAqEKYjaGhJbY1lnT/F2c6zSITD8gpAEiMIe. update_password=always
-    - name: Enable pcs
-        service: name=pcsd.service state=started enabled=yes
-    - name: Authenticate the hacluster user
-        command: /usr/sbin/pcs cluster auth {{ groups['nodes'] | join(' ') }} -u hacluster -p 123456
-        run_once: true
-    - name: Generate and synchronize the corosync
-        command: /usr/sbin/pcs cluster setup --name mycluster {{ groups['nodes'] | join(' ') }}
-        run_once: true
-    - name: Enable corysync
-        service: name=corosync.service state=started enabled=yes
-    - name: Enable pacemaker
-        service: name=pacemaker.service state=started enabled=yes
-    - name: Set property stonith
-        command: /usr/sbin/pcs property set stonith-enabled=false
-        run_once: true
-    - name: Set rosource defaults
-        command: /usr/sbin/pcs resource defaults resource-stickiness=100
-        run_once: true
+这里为了简单，使用了systemd的agent。
 
-    - name: Create lvs resource
-        command: /usr/sbin/pcs resource create lvs ocf:heartbead:lvs params nic=eth0 vip=192.168.122.100 --master
-        run_once: true
+**文件名： ldirectord.service**
 
-    - name: Create ldirectord.cf
-        template: src={{ playbook_dir }}/ldirectord.cf.j2 dest=/etc/ha.d/ldirectord.cf     
+    [Unit]
+    Description=ldirectord.service
+    After=network.target
+
+    [Service]
+    Type=forking
+    PIDFile=/var/run/ldirectord.ldirectord.pid
+    ExecStart=/sbin/ldirectord restart
+    ExecStop=/sbin/ldirectord stop
+    ExecReload=/sbin/ldirectord reload
+
+    [Install]
+    WantedBy=multi-user.target
 
 ### inventory
+资产文件设置了三个主机，使用cluster用户进行部署。请根据实际情况进行调整。
+
+**文件名： hosts**
 
     [nodes]
     node1 ip=192.168.122.111 ansible_user=cluster
@@ -366,6 +362,10 @@ ldirectord要从官网下载安装。由于ldirectord没有提供相应agent，�
     port=80
 
 ### ldirectord.cf.j2
+ldirectord配置文件，请根据实际情况进行调整。
+
+**文件名： ldirectord.cf.j2**
+
     checktimeout=3
     checkinterval=10
     autoreload=yes
@@ -378,23 +378,94 @@ ldirectord要从官网下载安装。由于ldirectord没有提供相应agent，�
         checkport={{ port }}
         checktype=connect
         service=simpletcp
-        scheduler=wlc
+        scheduler=lc
         protocol=tcp
 
-## lvs要求real server必须禁止arp响应而virtual server必须支持arp响应，pacemaker定义资源运行在Master/Slave模式并与ldirectord绑定关系。
+### playbook
+ansible使用pcs对pacemaker进行配置
+
+这里密码写死123456。网卡为eth0。vip为192.168.122.100。
+
+**文件名： lvs.yml**
+
+    ---
+    - hosts: nodes
+      become: yes
+      tasks:
+      - name: Set a password for the hacluster user
+        user: name=hacluster password=$6$rounds=656000$JBKx3dx31baJQ.zA$uBwQqkpLY/0SV7JxEHdKGcXfjQx6NZgvKoiZ/Z13NTFjn96UyTAqEKYjaGhJbY1lnT/F2c6zSITD8gpAEiMIe. update_password=always
+      - name: Enable pcs
+        service: name=pcsd.service state=started enabled=yes
+      - name: Authenticate the hacluster user
+        command: /usr/sbin/pcs cluster auth {{ groups['nodes'] | join(' ') }} -u hacluster -p 123456
+        run_once: true
+      - name: Generate and synchronize the corosync
+        command: /usr/sbin/pcs cluster setup --name mycluster {{ groups['nodes'] | join(' ') }}
+        run_once: true
+      - name: Enable corysync
+        service: name=corosync.service state=started enabled=yes
+      - name: Enable pacemaker
+        service: name=pacemaker.service state=started enabled=yes
+      - name: Set property stonith
+        command: /usr/sbin/pcs property set stonith-enabled=false
+        run_once: true
+      - name: Set rosource defaults
+        command: /usr/sbin/pcs resource defaults resource-stickiness=100
+        run_once: true
+
+      - name: Create lvs agent
+        copy: src={{ playbook_dir }}/lvs dest=/usr/lib/ocf/resource.d/heartbeat/lvs mode=755
+      - name: Create lvs resource
+        command: /usr/sbin/pcs resource create lvs ocf:heartbeat:lvs params nic=eth0 vip=192.168.122.100 --master
+        run_once: true
+
+      - name: Create ldirectord.cf
+        template: src={{ playbook_dir }}/ldirectord.cf.j2 dest=/etc/ha.d/ldirectord.cf     
+      - name: Create ldirectord.service
+        copy: src={{ playbook_dir }}/ldirectord.service dest=/etc/systemd/system/ldirectord.service
+      - name: Create ldirectord resource
+        command: /usr/sbin/pcs resource create ldirectord systemd:ldirectord
+        run_once: true
+
+      - name: Create colocation constraint
+        command: /usr/sbin/pcs constraint colocation add ldirectord with master lvs-master
+        run_once: true
+      - name: Create order constraint
+        command: /usr/sbin/pcs constraint order promote lvs-master then ldirectord
+        run_once: true
+
+# 部署
+ansible的配置这里省略了。部署命令：
+
+    ansible-playbook -i hosts lvs.yml -v
+
+# 验证
+在各机器启用验证实例：
+
+    nc -l 80 -e /usr/bin/hostname -k
+
+在其它节点验证：
+
+    curl 192.168.122.100
 
 # 遗留问题
-* real server上tcp通过vip连不出来，只能连接到本机
-* virtial server上tcp通过vip如果刚好调度到本机的话是可以的，如果调度到real server上tcp超时
+* real server上不要连接vip，tcp通过vip连不出来，只能连接到本机。
+* virtial server上不要连接vip，tcp通过vip如果刚好调度到本机可以连通，如果调度到real server上tcp超时。
 
-该可能跟策略路由有关系
+以上两点可能跟策略路由有关系，该问题可由应用程序解决。
 
-# QA
-## 为什么不用keepalived？
-由于项目中还用其它服务要要进行集群管理，pacemaker更灵活。
+* 断网卡时vip可能挂不上**（硬伤）**。corosync能检测到，但pacemaker没有动作。
 
-## 为什么使用ldirectord？
+这点是硬伤，还需要进一步调查。
+
+# Q&A
+### 为什么使用ldirectord？
 使用ldirectord来更新lvs的高度规则，简化配置管理。
 
-## 为什么使用ansible?
-为了简化集群部署，使用ansible部署工具实现集群一键部署的目标。
+### 为什么不用keepalived？
+如果只使用lvs调度，由于keepalived集成了ldirectord与pacemaker的功能，更简单。
+
+但由于我们项目中还有其它服务要进行集群管理，使用pacemaker更灵活。
+
+### 为什么使用ansible?
+为了简化集群部署，使用ansible部署工具实现集群一键部署的目标，如上只要一条命令就可以部署集群。
