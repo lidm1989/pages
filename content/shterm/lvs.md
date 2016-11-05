@@ -331,7 +331,7 @@ ldirectord需从官网下载安装。
 
 这里为了简单，使用了systemd的agent。
 
-**文件名： ldirectord.service**
+**文件名：ldirectord.service**
 
     [Unit]
     Description=ldirectord.service
@@ -350,7 +350,7 @@ ldirectord需从官网下载安装。
 ### inventory
 资产文件设置了三个主机，使用cluster用户进行部署。请根据实际情况进行调整。
 
-**文件名： hosts**
+**文件名：hosts**
 
     [nodes]
     node1 ip=192.168.122.111 ansible_user=cluster
@@ -364,7 +364,7 @@ ldirectord需从官网下载安装。
 ### ldirectord.cf.j2
 ldirectord配置文件，请根据实际情况进行调整。
 
-**文件名： ldirectord.cf.j2**
+**文件名：ldirectord.cf.j2**
 
     checktimeout=3
     checkinterval=10
@@ -384,9 +384,9 @@ ldirectord配置文件，请根据实际情况进行调整。
 ### playbook
 ansible使用pcs对pacemaker进行配置
 
-这里密码写死123456。网卡为eth0。vip为192.168.122.100。
+这里密码写死为123456。网卡写死为eth0。vip写死为192.168.122.100，与inventory中保持一致。
 
-**文件名： lvs.yml**
+**文件名：lvs.yml**
 
     ---
     - hosts: nodes
@@ -449,23 +449,25 @@ ansible的配置这里省略了。部署命令：
     curl 192.168.122.100
 
 # 遗留问题
-* real server上不要连接vip，tcp通过vip连不出来，只能连接到本机。
-* virtial server上不要连接vip，tcp通过vip如果刚好调度到本机可以连通，如果调度到real server上tcp超时。
+1. real server上不要连接vip，tcp通过vip连不出来，只能连接到本机。
+1. virtial server上不要连接vip，tcp通过vip如果刚好调度到本机可以连通，如果调度到real server上tcp超时。
+1. master节点网卡被ifdown时，vip偶尔挂不上。corosync能检测到，但pacemaker没有动作。
 
-以上两点可能跟策略路由有关系，该问题可由应用程序解决。
+问题1和问题2可能跟策略路由有关系，可由应用程序解决：
 
-* 断网卡时vip可能挂不上**（硬伤）**。corosync能检测到，但pacemaker没有动作。
+* 使用实际IP地址
+* 使用额外vip，该vip不进行lvs配置
 
-这点是硬伤，还需要进一步调查。
+问题3是**硬伤**，还需要进一步调查。
 
 # Q&A
 ### 为什么使用ldirectord？
-使用ldirectord来更新lvs的高度规则，简化配置管理。
+使用ldirectord来更新lvs的调度规则，简化配置管理。
 
 ### 为什么不用keepalived？
-如果只使用lvs调度，由于keepalived集成了ldirectord与pacemaker的功能，更简单。
+如果项目只使用lvs调度，由于keepalived集成了ldirectord与pacemaker的功能，会更简单。
 
 但由于我们项目中还有其它服务要进行集群管理，使用pacemaker更灵活。
 
 ### 为什么使用ansible?
-为了简化集群部署，使用ansible部署工具实现集群一键部署的目标，如上只要一条命令就可以部署集群。
+为了简化集群部署，使用ansible部署工具实现集群一键部署的目标。像上面只用一条命令就可以部署整个集群。
