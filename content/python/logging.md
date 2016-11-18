@@ -2,7 +2,7 @@
 date = "2016-10-08T22:28:53+08:00"
 draft = false
 title = "logging"
-thumbnail = "images/python/python.jpg"
+thumbnail = "images/python/logging_flow.png"
 
 categories = ["python"]
 
